@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Photo2Excel AI</title><script src="https://cdn.tailwindcss.com"></script>
+</head><body class="bg-slate-950 text-white min-h-screen">
+<div class="max-w-5xl mx-auto px-5 py-10">
+<header class="text-center mb-10"><div class="text-4xl mb-3">📸 → 📊</div>
+<h1 class="text-4xl md:text-6xl font-black">Photo2Excel <span class="text-blue-400">AI</span></h1>
+<p class="text-slate-400 mt-3">Turn a photo of a table into a clean Excel file.</p></header>
+<div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl">
+<label id="drop" class="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-2xl min-h-64 flex flex-col items-center justify-center cursor-pointer transition">
+<div class="text-5xl mb-4">⬆️</div><h2 class="text-xl font-bold">Upload your table photo</h2>
+<p class="text-slate-500 mt-2">PNG, JPG or PDF</p><input id="file" type="file" accept=".png,.jpg,.jpeg,.pdf" class="hidden">
+</label>
+<div id="status" class="hidden mt-6 p-4 rounded-xl bg-slate-800 text-center"></div>
+<div id="preview" class="hidden mt-8">
+<div class="flex justify-between items-center mb-3"><h2 class="font-bold text-xl">Extracted Data</h2>
+<button id="download" class="bg-blue-500 hover:bg-blue-600 px-5 py-2 rounded-xl font-bold">Download Excel</button></div>
+<div class="overflow-auto rounded-xl border border-slate-700"><table class="w-full text-sm"><tbody id="table"></tbody></table></div>
+</div></div>
+<footer class="text-center text-slate-600 text-sm mt-8">Local OCR • FastAPI • openpyxl</footer>
+</div>
+<script>
+const file=document.querySelector('#file'), drop=document.querySelector('#drop'), status=document.querySelector('#status');
+const preview=document.querySelector('#preview'), table=document.querySelector('#table'), download=document.querySelector('#download');
+let excelBlob=null;
+drop.onclick=()=>file.click();
+file.onchange=()=>file.files[0]&&upload(file.files[0]);
+async function upload(f){
+ status.classList.remove('hidden'); status.textContent='⏳ Reading and cleaning your table...';
+ preview.classList.add('hidden');
+ const fd=new FormData(); fd.append('file',f);
+ try{
+  const r=await fetch('http://localhost:8000/extract',{method:'POST',body:fd});
+  if(!r.ok) throw new Error(await r.text());
+  const data=await r.json(); render(data.rows);
+  excelBlob=await (await fetch('http://localhost:8000/excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:data.rows})})).blob();
+  status.textContent='✅ Done! Check the table and download your Excel file.';
+  preview.classList.remove('hidden');
+ }catch(e){status.textContent='❌ '+e.message}
+}
+function render(rows){
+ table.innerHTML='';
+ rows.forEach((row,i)=>{
+  const tr=document.createElement('tr'); tr.className=i===0?'bg-slate-800 font-bold':'border-t border-slate-800';
+  row.forEach((cell,j)=>{const el=document.createElement(i===0?'th':'td'); el.contentEditable=true; el.className='px-4 py-3 text-left min-w-32'; el.textContent=cell; tr.appendChild(el)});
+  table.appendChild(tr);
+ });
+}
+download.onclick=()=>{if(!excelBlob)return; const a=document.createElement('a');a.href=URL.createObjectURL(excelBlob);a.download='cleaned_table.xlsx';a.click();}
+</script></body></html>
